@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>体态卫士 v6.0 - 专家健康管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        body { background-color: #0b0f19; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+        
+        /* 玻璃拟态面板 */
+        .glass {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-box {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #1e293b;
+            transition: all 0.3s ease;
+        }
+
+        /* 呼吸动画 */
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+        .breathe-circle {
+            animation: breathe 4s infinite ease-in-out;
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-[#0f172a] shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                <i class="fas fa-user-md"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-white leading-tight">PostureGuard</h1>
+                <p class="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Expert System v6.0</p>
+            </div>
+        </div>
+        <div class="flex gap-6 text-sm">
+            <div class="text-right">
+                <p class="text-xs text-slate-500">今日专注</p>
+                <p class="font-mono font-bold text-indigo-400" id="total-focus-time">0 min</p>
+            </div>
+            <div class="w-px h-8 bg-slate-700 self-center"></div>
+            <div class="text-right">
+                <p class="text-xs text-slate-500">历史评级</p>
+                <p class="font-mono font-bold text-green-400" id="avg-grade">-</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex gap-6 p-6 overflow-hidden relative">
+        
+        <main class="flex-1 flex flex-col min-w-0 gap-4">
+            <div class="camera-box group" id="monitor-box">
+                <video class="input_video hidden"></video>
+                <canvas class="output_canvas w-full h-full object-contain"></canvas>
+                
+                <div id="start-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-30">
+                    <button onclick="startSystem()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-full font-bold shadow-2xl shadow-indigo-500/40 transition transform hover:-translate-y-1 flex items-center gap-3">
+                        <i class="fas fa-power-off"></i> 启动专家系统
+                    </button>
+                </div>
+
+                <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                    <div class="bg-black/60 backdrop-blur px-4 py-2 rounded-lg border border-white/10 flex items-center gap-3">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse" id="status-dot"></span>
+                        <span class="font-bold text-sm text-white" id="status-text">系统待机</span>
+                    </div>
+                    
+                    <div class="bg-black/60 backdrop-blur px-3 py-2 rounded-lg border border-white/10 text-xs font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition">
+                        姿态系数: <span id="debug-ratio" class="text-white">0.00</span> / <span id="debug-limit" class="text-indigo-400">0.00</span>
+                    </div>
+                </div>
+
+                <div id="break-overlay" class="absolute inset-0 bg-slate-900/95 z-40 hidden flex flex-col items-center justify-center text-center">
+                    <div class="w-32 h-32 bg-indigo-500/20 rounded-full flex items-center justify-center breathe-circle mb-6">
+                        <i class="fas fa-lungs text-4xl text-indigo-400"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white mb-2">休息一下</h2>
+                    <p class="text-slate-400 mb-8">深呼吸，转动颈部，眺望远方</p>
+                    <button onclick="endBreak()" class="border border-slate-600 hover:bg-slate-800 text-slate-300 px-6 py-2 rounded-full transition">
+                        结束休息
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass rounded-xl p-5 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button onclick="autoCalibrate()" class="bg-slate-700 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg">
+                        <i class="fas fa-crosshairs"></i> 一键校准坐姿
+                    </button>
+                    <div class="text-xs text-slate-500 leading-tight">
+                        <p>保持标准坐姿后点击左侧按钮</p>
+                        <p>系统将自动设定最适合你的阈值</p>
+                    </div>
+                </div>
+
+                <div class="h-8 w-px bg-slate-700 mx-4"></div>
+
+                <div class="flex items-center gap-6">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-300 hover:text-white">
+                        <input type="checkbox" id="voice-toggle" class="accent-indigo-500" checked>
+                        <span>语音教练</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-300 hover:text-white">
+                        <input type="checkbox" id="skeleton-toggle" class="accent-indigo-500">
+                        <span>骨骼透视</span>
+                    </label>
+                </div>
+            </div>
+        </main>
+
+        <aside class="w-96 flex flex-col gap-4 shrink-0 overflow-hidden">
+            
+            <div class="glass p-6 rounded-2xl text-center relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl"></div>
+                
+                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Focus Session</h3>
+                <div class="text-6xl font-mono font-bold text-white mb-2 tracking-tighter" id="timer-display">25:00</div>
+                
+                <div class="w-full h-1.5 bg-slate-700 rounded-full mb-6 overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-indigo-500 w-0 transition-all duration-1000"></div>
+                </div>
+
+                <div class="flex gap-3">
+                    <input type="number" id="custom-time" value="25" class="w-16 bg-slate-800 border border-slate-600 rounded text-center text-sm outline-none focus:border-indigo-500">
+                    <button onclick="toggleTimer()" id="timer-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-900/20">
+                        开始专注
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass flex-1 rounded-2xl flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-slate-700/50 flex justify-between items-center">
+                    <h3 class="font-bold text-sm text-slate-300"><i class="fas fa-history mr-2"></i>本次会话记录</h3>
+                    <button onclick="clearHistory()" class="text-xs text-slate-600 hover:text-red-400"><i class="fas fa-trash"></i></button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-4 space-y-3" id="history-list">
+                    <div class="text-center text-xs text-slate-600 mt-10">暂无记录，开始一次专注吧</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <div id="report-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 w-96 rounded-2xl p-6 shadow-2xl transform scale-95 transition-all" id="report-card">
+            <h2 class="text-center text-2xl font-bold text-white mb-1">本次专注报告</h2>
+            <p class="text-center text-xs text-slate-500 mb-6" id="report-date">2023/10/01 12:00</p>
+
+            <div class="flex justify-center mb-6">
+                <div class="w-24 h-24 rounded-full border-4 border-indigo-500 flex items-center justify-center text-4xl font-bold text-indigo-400 bg-indigo-500/10" id="report-grade">
+                    A
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-slate-800 p-3 rounded-lg text-center">
+                    <p class="text-xs text-slate-400">专注时长</p>
+                    <p class="text-lg font-bold text-white" id="report-duration">25m</p>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-lg text-center">
+                    <p class="text-xs text-slate-400">不良体态</p>
+                    <p class="text-lg font-bold text-red-400" id="report-bad">2m</p>
+                </div>
+            </div>
+
+            <button onclick="closeReport()" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold transition">
+                收入档案
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ============================
+        // 1. 全局配置与状态
+        // ============================
+        let state = {
+            isRunning: false,
+            badFrames: 0,
+            currentRatio: 0,
+            threshold: 0.55, // 默认阈值
+            timer: null,
+            timeLeft: 25 * 60,
+            initialTime: 25 * 60,
+            isFocusing: false,
+            sessionBadTime: 0, // 本次会话不良秒数
+            sessionDuration: 0, // 本次会话已进行秒数
+            lastSpeak: 0
+        };
+
+        const els = {
+            video: document.querySelector('.input_video'),
+            canvas: document.querySelector('.output_canvas'),
+            ctx: document.querySelector('.output_canvas').getContext('2d'),
+            statusText: document.getElementById('status-text'),
+            statusDot: document.getElementById('status-dot'),
+            debugRatio: document.getElementById('debug-ratio'),
+            debugLimit: document.getElementById('debug-limit'),
+            monitorBox: document.getElementById('monitor-box'),
+            timerDisplay: document.getElementById('timer-display'),
+            progressBar: document.getElementById('progress-bar'),
+            timerBtn: document.getElementById('timer-btn'),
+            historyList: document.getElementById('history-list'),
+            reportModal: document.getElementById('report-modal'),
+            breakOverlay: document.getElementById('break-overlay')
+        };
+
+        // ============================
+        // 2. AI 核心逻辑 (专家版)
+        // ============================
+        const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+        pose.setOptions({modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+        pose.onResults(onResults);
+
+        function onResults(results) {
+            // 画布适配
+            if (els.canvas.width !== els.video.videoWidth) {
+                els.canvas.width = els.video.videoWidth;
+                els.canvas.height = els.video.videoHeight;
+            }
+
+            // 绘制
+            els.ctx.save();
+            els.ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+            els.ctx.translate(els.canvas.width, 0);
+            els.ctx.scale(-1, 1);
+            els.ctx.drawImage(results.image, 0, 0, els.canvas.width, els.canvas.height);
+
+            if (results.poseLandmarks) {
+                const lm = results.poseLandmarks;
+                
+                // 骨骼开关
+                if(document.getElementById('skeleton-toggle').checked) {
+                    drawConnectors(els.ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255,255,255,0.2)', lineWidth: 2});
+                    drawLandmarks(els.ctx, [lm[0], lm[11], lm[12]], {color: '#6366f1', lineWidth: 1, radius: 4});
+                }
+
+                analyzePosture(lm);
+            }
+            els.ctx.restore();
+        }
+
+        function analyzePosture(lm) {
+            const nose = lm[0];
+            const lSh = lm[11];
+            const rSh = lm[12];
+            
+            // 计算核心指标：颈肩比
+            const shoulderWidth = Math.sqrt(Math.pow(lSh.x - rSh.x, 2) + Math.pow(lSh.y - rSh.y, 2));
+            const midShY = (lSh.y + rSh.y) / 2;
+            const neckDist = Math.abs(nose.y - midShY);
+            
+            state.currentRatio = neckDist / shoulderWidth; // 保存当前比率用于校准
+
+            // UI Debug 更新
+            els.debugRatio.innerText = state.currentRatio.toFixed(2);
+            els.debugLimit.innerText = state.threshold.toFixed(2);
+
+            // 判断
+            const isBad = state.currentRatio < state.threshold;
+
+            if (isBad) {
+                state.badFrames++;
+                if (state.isFocusing && state.badFrames % 30 === 0) {
+                    state.sessionBadTime++; // 记录不良时间
+                }
+            } else {
+                state.badFrames = 0;
+                resetStatusUI();
+            }
+
+            // 触发警告 (约1.5秒持续不良)
+            if (state.badFrames > 45) {
+                triggerWarning();
+            }
+        }
+
+        function triggerWarning() {
+            els.monitorBox.style.borderColor = '#ef4444'; // Red
+            els.monitorBox.style.boxShadow = '0 0 30px rgba(239, 68, 68, 0.4)';
+            els.statusText.innerText = "⚠️ 姿态异常 (低头/驼背)";
+            els.statusText.classList.add('text-red-400');
+            els.statusDot.classList.replace('bg-green-500', 'bg-red-500');
+
+            if (document.getElementById('voice-toggle').checked) {
+                const now = Date.now();
+                if (now - state.lastSpeak > 8000) {
+                    speak("请注意坐姿，挺胸抬头");
+                    state.lastSpeak = now;
+                }
+            }
+        }
+
+        function resetStatusUI() {
+            els.monitorBox.style.borderColor = '#1e293b'; // Default border
+            els.monitorBox.style.boxShadow = 'none';
+            els.statusText.innerText = "专家监测中...";
+            els.statusText.classList.remove('text-red-400');
+            els.statusDot.classList.replace('bg-red-500', 'bg-green-500');
+        }
+
+        function speak(text) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.1;
+            window.speechSynthesis.speak(u);
+        }
+
+        // ============================
+        // 3. 专家功能：一键校准
+        // ============================
+        function autoCalibrate() {
+            if (!state.isRunning) {
+                alert("请先启动系统！");
+                return;
+            }
+            if (state.currentRatio === 0) {
+                alert("未检测到人体，请正对摄像头！");
+                return;
+            }
+
+            // 算法：以当前标准坐姿的 85% 作为报警阈值
+            const newThreshold = state.currentRatio * 0.85;
+            state.threshold = newThreshold;
+            
+            speak("坐姿校准完成");
+            alert(`✅ 校准成功！\n\n基准值: ${state.currentRatio.toFixed(2)}\n报警阈值已设为: ${newThreshold.toFixed(2)}\n\n(当你的低头幅度超过当前的 15% 时系统将报警)`);
+        }
+
+        // ============================
+        // 4. 专注计时与报告系统
+        // ============================
+        function toggleTimer() {
+            if (state.isFocusing) {
+                stopTimer(); // 手动停止 -> 结算
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            if (!state.isRunning) {
+                alert("请先点击画面中间的按钮启动 AI 系统");
+                return;
+            }
+            
+            const inputMin = parseInt(document.getElementById('custom-time').value);
+            state.initialTime = inputMin * 60;
+            state.timeLeft = state.initialTime;
+            state.sessionBadTime = 0; // 重置不良记录
+            state.sessionDuration = 0;
+            
+            state.isFocusing = true;
+            els.timerBtn.innerText = "停止专注 (结算)";
+            els.timerBtn.classList.replace('bg-indigo-600', 'bg-slate-700');
+
+            state.timer = setInterval(() => {
+                if (state.timeLeft > 0) {
+                    state.timeLeft--;
+                    state.sessionDuration++;
+                    updateTimerUI();
+                } else {
+                    stopTimer(true); // 自然结束
+                }
+            }, 1000);
+        }
+
+        function stopTimer(finished = false) {
+            state.isFocusing = false;
+            clearInterval(state.timer);
+            els.timerBtn.innerText = "开始专注";
+            els.timerBtn.classList.replace('bg-slate-700', 'bg-indigo-600');
+            els.progressBar.style.width = '0%';
+
+            // 生成报告
+            generateReport(finished);
+
+            // 如果是自然结束，进入休息模式
+            if (finished) {
+                playSound("专注完成，进入休息模式");
+                els.breakOverlay.classList.remove('hidden');
+            }
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(state.timeLeft / 60).toString().padStart(2, '0');
+            const s = (state.timeLeft % 60).toString().padStart(2, '0');
+            els.timerDisplay.innerText = `${m}:${s}`;
+            
+            const percent = ((state.initialTime - state.timeLeft) / state.initialTime) * 100;
+            els.progressBar.style.width = `${percent}%`;
+        }
+
+        function endBreak() {
+            els.breakOverlay.classList.add('hidden');
+            // 重置时间显示
+            const inputMin = parseInt(document.getElementById('custom-time').value);
+            els.timerDisplay.innerText = `${inputMin.toString().padStart(2,'0')}:00`;
+        }
+
+        // ============================
+        // 5. 报告与历史数据
+        // ============================
+        let historyData = JSON.parse(localStorage.getItem('pg_expert_history')) || [];
+
+        function generateReport(finished) {
+            // 只有超过 1 分钟才生成报告，避免误触
+            if (state.sessionDuration < 60) return;
+
+            const durationMins = Math.floor(state.sessionDuration / 60);
+            const badMins = (state.sessionBadTime / 60).toFixed(1);
+            const badRatio = state.sessionBadTime / state.sessionDuration;
+            
+            // 评级逻辑
+            let grade = 'C';
+            let color = 'text-red-500';
+            if (badRatio < 0.05) { grade = 'S'; color = 'text-yellow-400'; } // <5% 不良
+            else if (badRatio < 0.15) { grade = 'A'; color = 'text-green-400'; }
+            else if (badRatio < 0.30) { grade = 'B'; color = 'text-blue-400'; }
+
+            // 填充弹窗
+            document.getElementById('report-date').innerText = new Date().toLocaleString();
+            document.getElementById('report-duration').innerText = `${durationMins} min`;
+            document.getElementById('report-bad').innerText = `${badMins} min`;
+            const gradeEl = document.getElementById('report-grade');
+            gradeEl.innerText = grade;
+            gradeEl.className = `w-24 h-24 rounded-full border-4 flex items-center justify-center text-4xl font-bold bg-slate-800 ${color} border-current`;
+            
+            els.reportModal.classList.remove('hidden');
+
+            // 保存到历史
+            const record = {
+                id: Date.now(),
+                date: new Date().toLocaleTimeString(),
+                duration: durationMins,
+                grade: grade,
+                gradeColor: color
+            };
+            historyData.unshift(record); // 加到最前
+            localStorage.setItem('pg_expert_history', JSON.stringify(historyData));
+            renderHistory();
+        }
+
+        function closeReport() {
+            els.reportModal.classList.add('hidden');
+        }
+
+        function renderHistory() {
+            els.historyList.innerHTML = '';
+            if (historyData.length === 0) {
+                els.historyList.innerHTML = '<div class="text-center text-xs text-slate-600 mt-10">暂无记录</div>';
+                return;
+            }
+
+            historyData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50";
+                div.innerHTML = `
+                    <div>
+                        <div class="text-xs text-slate-400">${item.date}</div>
+                        <div class="font-bold text-sm text-white">专注 ${item.duration} 分钟</div>
+                    </div>
+                    <div class="font-bold text-xl ${item.gradeColor}">${item.grade}</div>
+                `;
+                els.historyList.appendChild(div);
+            });
+            
+            // 更新顶部总计
+            const totalMins = historyData.reduce((acc, cur) => acc + cur.duration, 0);
+            document.getElementById('total-focus-time').innerText = `${totalMins} min`;
+        }
+        
+        function clearHistory() {
+            if(confirm('确定清除所有历史记录吗？')) {
+                historyData = [];
+                localStorage.removeItem('pg_expert_history');
+                renderHistory();
+            }
+        }
+
+        function playSound(text) {
+            if (document.getElementById('voice-toggle').checked) {
+                const u = new SpeechSynthesisUtterance(text);
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        function startSystem() {
+            document.getElementById('start-overlay').style.display = 'none';
+            state.isRunning = true;
+            const camera = new Camera(els.video, {
+                onFrame: async () => { await pose.send({image: els.video}); },
+                width: 1280, height: 720
+            });
+            camera.start();
+        }
+
+        // 初始化
+        renderHistory();
+
+    </script>
+</body>
+</html>
