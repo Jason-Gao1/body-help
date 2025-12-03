@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>体态卫士 v7.0 - 多用户档案系统</title>
+    <title>体态卫士 v8.0 - 终极全能版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -11,286 +11,411 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
         
+        /* 玻璃拟态 */
         .glass {
-            background: rgba(30, 41, 59, 0.6);
+            background: rgba(30, 41, 59, 0.7);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
         }
 
         .camera-container {
             width: 100%;
             aspect-ratio: 16/9;
             background: #000;
-            border-radius: 12px;
+            border-radius: 16px;
             overflow: hidden;
             position: relative;
             border: 2px solid #334155;
             transition: all 0.3s;
         }
 
-        /* 登录页面的背景动画 */
-        .login-bg {
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-        }
+        .login-bg { background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); }
         
-        ::-webkit-scrollbar { width: 6px; }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        /* 标签页选中样式 */
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .tab-inactive { color: #64748b; }
+        
+        .task-done span { text-decoration: line-through; color: #475569; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
-    <div id="login-layer" class="fixed inset-0 z-50 login-bg flex flex-col items-center justify-center transition-all duration-500">
-        <div class="text-center mb-8">
-            <div class="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
-                <i class="fas fa-users text-3xl text-white"></i>
-            </div>
-            <h1 class="text-3xl font-bold text-white tracking-wide">PostureGuard <span class="text-blue-500">ID</span></h1>
-            <p class="text-slate-400 mt-2">个人体态健康档案管理系统</p>
-        </div>
-
-        <div class="glass p-8 rounded-2xl w-full max-w-sm">
-            <label class="block text-xs font-bold text-slate-400 uppercase mb-2">用户名 / User ID</label>
-            <input type="text" id="username-input" placeholder="输入你的名字 (如: Alex)" class="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500 transition mb-6" onkeypress="handleLoginEnter(event)">
+    <div id="login-layer" class="fixed inset-0 z-50 login-bg flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="glass p-8 rounded-2xl w-full max-w-sm text-center border-t-4 border-blue-500">
+            <h1 class="text-2xl font-bold text-white mb-1">PostureGuard <span class="text-xs bg-blue-600 px-1 rounded">v8.0</span></h1>
+            <p class="text-xs text-slate-400 mb-6">全能型健康管理终端</p>
             
-            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95">
+            <input type="text" id="username-input" placeholder="输入用户名 (如: Admin)" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 transition mb-4 text-center" onkeypress="handleLoginEnter(event)">
+            
+            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition shadow-lg hover:shadow-blue-500/20">
                 进入系统
             </button>
-            <p class="text-center text-xs text-slate-600 mt-4">数据将隔离存储于本地</p>
         </div>
     </div>
 
-
-    <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center text-white font-bold">
-                <i class="fas fa-shield-alt"></i>
-            </div>
+    <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-cube text-blue-500 text-xl"></i>
             <div>
-                <h1 class="font-bold text-sm text-gray-200">体态卫士 v7.0</h1>
-                <div class="flex items-center gap-2">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                    <span class="text-[10px] text-slate-400" id="current-user-display">未登录</span>
+                <h1 class="font-bold text-sm text-gray-200 tracking-wide">PostureGuard</h1>
+                <div class="flex items-center gap-2 text-[10px] text-slate-500">
+                    <span id="current-user-display" class="text-blue-400 font-bold">未登录</span>
+                    <span>|</span>
+                    <span id="clock-display">00:00</span>
                 </div>
             </div>
         </div>
-        
-        <div class="flex items-center gap-4">
-            <div class="text-right hidden md:block">
-                <p class="text-[10px] text-slate-500">个人灵敏度配置</p>
-                <p class="text-xs font-mono text-blue-400 font-bold" id="user-config-info">未加载</p>
-            </div>
-            <div class="w-px h-8 bg-slate-700"></div>
-            <button onclick="logout()" class="text-xs text-slate-400 hover:text-white flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">
-                <i class="fas fa-sign-out-alt"></i> 切换用户
-            </button>
-        </div>
+        <button onclick="logout()" class="text-xs text-slate-400 hover:text-white flex items-center gap-2 hover:bg-slate-800 px-3 py-1 rounded transition">
+            <i class="fas fa-sign-out-alt"></i> 退出
+        </button>
     </header>
 
-    <div class="flex-1 flex gap-6 p-6 overflow-hidden">
+    <div class="flex-1 flex gap-4 p-4 overflow-hidden">
         
-        <main class="flex-1 flex flex-col gap-4 min-w-0">
+        <main class="flex-[2] flex flex-col gap-4 min-w-0">
             <div class="camera-container group" id="monitor-box">
                 <video class="input_video hidden"></video>
                 <canvas class="output_canvas w-full h-full object-contain"></canvas>
                 
                 <div id="start-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10">
-                    <button onclick="startSystem()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full font-bold shadow-xl transition flex items-center gap-2">
-                        <i class="fas fa-camera"></i> 启动当前用户监测
+                    <button onclick="startSystem()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full font-bold shadow-xl transition flex items-center gap-2 transform hover:scale-105">
+                        <i class="fas fa-play"></i> 启动监测
                     </button>
                 </div>
-                
+
                 <div class="absolute top-4 left-4 flex gap-2">
-                    <div class="bg-black/60 backdrop-blur px-3 py-1.5 rounded-lg text-xs font-bold text-green-400" id="status-badge">
-                        系统待机
+                    <div class="bg-black/60 backdrop-blur px-3 py-1 rounded text-xs font-bold text-slate-300 border border-white/10" id="status-badge">
+                        <i class="fas fa-circle text-[8px] text-green-500 mr-2"></i>系统待机
                     </div>
                 </div>
             </div>
 
             <div class="glass p-4 rounded-xl flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                    <button onclick="calibrateUser()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg">
-                        <i class="fas fa-ruler-combined mr-1"></i> 校准并保存
-                    </button>
-                    <div class="text-[10px] text-slate-400">
-                        当前阈值: <span id="current-threshold" class="text-white font-mono">0.00</span>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-3">
+                        <button onclick="calibrateUser()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-bold transition shadow">
+                            一键校准
+                        </button>
+                        <span class="text-[10px] text-slate-500">当前阈值: <span id="thres-disp" class="text-indigo-400">0.00</span></span>
                     </div>
+                    <p class="text-[10px] text-slate-500">请保持标准坐姿后点击校准</p>
                 </div>
                 
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                        <input type="checkbox" id="voice-toggle" class="accent-blue-500" onchange="saveUserPrefs()"> 语音
+                <div class="flex gap-4 border-l border-slate-700 pl-4">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300 hover:text-white">
+                        <input type="checkbox" id="voice-toggle" class="accent-blue-500" onchange="savePrefs()"> 语音
                     </label>
-                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                        <input type="checkbox" id="skeleton-toggle" class="accent-blue-500" onchange="saveUserPrefs()"> 骨骼
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300 hover:text-white">
+                        <input type="checkbox" id="skeleton-toggle" class="accent-blue-500" onchange="savePrefs()"> 骨骼
                     </label>
                 </div>
             </div>
         </main>
 
-        <aside class="w-80 flex flex-col gap-4 shrink-0 overflow-hidden">
-            <div class="glass flex-1 rounded-xl p-4 flex flex-col overflow-hidden">
-                <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-700">
-                    <h3 class="font-bold text-sm text-slate-200">
-                        <i class="fas fa-file-medical-alt mr-2 text-blue-500"></i>历史档案
-                    </h3>
-                    <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300" id="history-count">0 条</span>
+        <aside class="flex-1 flex flex-col glass rounded-xl overflow-hidden border border-slate-700/50">
+            <div class="flex border-b border-slate-700 bg-slate-800/50">
+                <button onclick="switchTab('timer')" id="tab-btn-timer" class="flex-1 py-3 text-xs font-bold text-center hover:bg-slate-700 transition tab-active">
+                    <i class="fas fa-stopwatch mb-1 block text-sm"></i> 专注
+                </button>
+                <button onclick="switchTab('tasks')" id="tab-btn-tasks" class="flex-1 py-3 text-xs font-bold text-center hover:bg-slate-700 transition tab-inactive">
+                    <i class="fas fa-tasks mb-1 block text-sm"></i> 任务
+                </button>
+                <button onclick="switchTab('history')" id="tab-btn-history" class="flex-1 py-3 text-xs font-bold text-center hover:bg-slate-700 transition tab-inactive">
+                    <i class="fas fa-history mb-1 block text-sm"></i> 档案
+                </button>
+            </div>
+
+            <div id="tab-content-timer" class="p-6 flex flex-col h-full text-center">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6">番茄专注钟</h3>
+                <div class="text-6xl font-mono font-bold text-white mb-2 tracking-tighter" id="timer-display">25:00</div>
+                
+                <div class="flex justify-center gap-2 mb-8">
+                    <input type="number" id="custom-time-input" value="25" class="w-16 bg-slate-800 border border-slate-600 rounded text-center text-sm py-1">
+                    <button onclick="setCustomTime()" class="text-xs bg-slate-700 px-3 rounded hover:bg-slate-600">设定</button>
                 </div>
 
-                <div class="flex-1 overflow-y-auto space-y-3" id="history-list">
-                    <div class="text-center text-xs text-slate-600 mt-10">暂无该用户数据</div>
-                </div>
+                <button onclick="toggleTimer()" id="timer-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-900/30 mb-4">
+                    开始专注
+                </button>
                 
-                <button onclick="clearUserHistory()" class="mt-4 text-xs text-slate-500 hover:text-red-400 w-full text-center">
-                    清除当前用户记录
+                <p class="text-[10px] text-slate-500 mt-auto">专注期间尽量保持姿态端正</p>
+            </div>
+
+            <div id="tab-content-tasks" class="p-4 flex flex-col h-full hidden">
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="task-input" placeholder="添加新任务..." class="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-white outline-none">
+                    <button onclick="addTask()" class="bg-blue-600 px-3 rounded text-white text-xs"><i class="fas fa-plus"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="task-list">
+                    </div>
+                <div class="mt-2 pt-2 border-t border-slate-700 flex justify-between text-[10px] text-slate-500">
+                    <span id="task-stats">0/0</span>
+                    <button onclick="clearTasks()" class="hover:text-red-400">清空</button>
+                </div>
+            </div>
+
+            <div id="tab-content-history" class="p-4 flex flex-col h-full hidden">
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="history-list">
+                    <div class="text-center text-xs text-slate-600 mt-10">暂无历史记录</div>
+                </div>
+                <button onclick="clearHistory()" class="mt-2 text-[10px] text-slate-500 hover:text-red-400 w-full text-center py-2">
+                    清除当前用户数据
                 </button>
             </div>
         </aside>
     </div>
 
     <script>
-        // ==========================================
-        // 1. 用户管理系统 (User Management System)
-        // ==========================================
+        // ============================
+        // 1. 全局状态与用户数据
+        // ============================
         let currentUser = null;
         let userData = {
-            threshold: 0.55, // 默认灵敏度
+            threshold: 0.55,
             prefs: { voice: true, skeleton: false },
-            history: []
+            tasks: [], // 任务清单
+            history: [] // 历史记录
         };
 
         const els = {
             loginLayer: document.getElementById('login-layer'),
             usernameInput: document.getElementById('username-input'),
             currentUserDisplay: document.getElementById('current-user-display'),
-            userConfigInfo: document.getElementById('user-config-info'),
-            thresholdDisplay: document.getElementById('current-threshold'),
+            thresDisp: document.getElementById('thres-disp'),
             voiceToggle: document.getElementById('voice-toggle'),
             skeletonToggle: document.getElementById('skeleton-toggle'),
+            taskList: document.getElementById('task-list'),
+            taskInput: document.getElementById('task-input'),
             historyList: document.getElementById('history-list'),
-            historyCount: document.getElementById('history-count')
+            timerDisplay: document.getElementById('timer-display'),
+            timerBtn: document.getElementById('timer-btn')
         };
 
-        function handleLoginEnter(e) {
-            if(e.key === 'Enter') handleLogin();
-        }
+        // --- 登录逻辑 ---
+        function handleLoginEnter(e) { if(e.key === 'Enter') handleLogin(); }
 
         function handleLogin() {
-            const username = els.usernameInput.value.trim();
-            if (!username) return alert("请输入用户名");
-
-            currentUser = username;
-            loadUserData(username);
+            const name = els.usernameInput.value.trim();
+            if(!name) return;
             
-            // UI 切换
+            currentUser = name;
+            loadUserData(name);
+            
             els.loginLayer.style.opacity = '0';
-            setTimeout(() => {
-                els.loginLayer.style.display = 'none';
-            }, 500);
-
-            // 更新 Header
-            els.currentUserDisplay.innerText = `用户: ${currentUser}`;
-            els.currentUserDisplay.classList.add('text-white');
-            updateConfigUI();
+            setTimeout(() => els.loginLayer.style.display = 'none', 500);
+            
+            els.currentUserDisplay.innerText = currentUser;
+            updateUIFromData();
         }
 
         function logout() {
-            // 保存当前数据
-            if(currentUser) saveUserData();
-            
-            // 重置状态
-            currentUser = null;
-            els.loginLayer.style.display = 'flex';
-            setTimeout(() => els.loginLayer.style.opacity = '1', 10);
-            els.usernameInput.value = '';
-            
-            // 停止 AI (可选)
-            // location.reload(); // 最简单的重置方式是刷新页面
-            window.location.reload();
+            saveData();
+            location.reload();
         }
 
-        // --- 核心：数据存取 ---
-        function loadUserData(username) {
-            const key = `pg_v7_user_${username}`;
+        // --- 数据存储逻辑 (LocalStorage) ---
+        function loadUserData(name) {
+            const key = `pg_v8_${name}`;
             const stored = localStorage.getItem(key);
-            
-            if (stored) {
+            if(stored) {
                 userData = JSON.parse(stored);
-                console.log(`已加载用户 ${username} 的数据`);
+                // 兼容性处理：如果旧数据没有tasks字段
+                if(!userData.tasks) userData.tasks = [];
+                if(!userData.history) userData.history = [];
             } else {
-                // 新用户，使用默认值
+                // 默认值
                 userData = {
                     threshold: 0.55,
                     prefs: { voice: true, skeleton: false },
+                    tasks: [
+                        { id: 1, text: "每工作45分钟喝水", done: false },
+                        { id: 2, text: "做一次颈椎操", done: false }
+                    ],
                     history: []
                 };
-                console.log(`创建新用户 ${username}`);
             }
-            
-            // 应用数据到界面
+        }
+
+        function saveData() {
+            if(!currentUser) return;
+            localStorage.setItem(`pg_v8_${currentUser}`, JSON.stringify(userData));
+            updateUIFromData();
+        }
+
+        function updateUIFromData() {
+            els.thresDisp.innerText = userData.threshold.toFixed(2);
             els.voiceToggle.checked = userData.prefs.voice;
             els.skeletonToggle.checked = userData.prefs.skeleton;
+            renderTasks();
             renderHistory();
         }
 
-        function saveUserData() {
-            if (!currentUser) return;
-            const key = `pg_v7_user_${currentUser}`;
-            localStorage.setItem(key, JSON.stringify(userData));
-            updateConfigUI();
-        }
-
-        function saveUserPrefs() {
+        function savePrefs() {
             userData.prefs.voice = els.voiceToggle.checked;
             userData.prefs.skeleton = els.skeletonToggle.checked;
-            saveUserData();
+            saveData();
         }
 
-        function updateConfigUI() {
-            els.userConfigInfo.innerText = `Sensitivity: ${(userData.threshold).toFixed(2)}`;
-            els.thresholdDisplay.innerText = userData.threshold.toFixed(2);
+        // ============================
+        // 2. 侧边栏 Tab 切换
+        // ============================
+        function switchTab(tabName) {
+            // Hide all
+            ['timer', 'tasks', 'history'].forEach(t => {
+                document.getElementById(`tab-content-${t}`).classList.add('hidden');
+                document.getElementById(`tab-btn-${t}`).classList.replace('tab-active', 'tab-inactive');
+                document.getElementById(`tab-btn-${t}`).classList.remove('border-b-2', 'border-blue-600', 'text-blue-500');
+            });
+
+            // Show target
+            document.getElementById(`tab-content-${tabName}`).classList.remove('hidden');
+            const btn = document.getElementById(`tab-btn-${tabName}`);
+            btn.classList.replace('tab-inactive', 'tab-active');
+            btn.classList.add('border-b-2', 'border-blue-600');
         }
 
-        // ==========================================
-        // 2. AI & 校准系统
-        // ==========================================
-        let isSystemActive = false;
+        // ============================
+        // 3. 任务清单逻辑 (Task List)
+        // ============================
+        function renderTasks() {
+            els.taskList.innerHTML = '';
+            let doneCount = 0;
+            userData.tasks.forEach((task, index) => {
+                if(task.done) doneCount++;
+                const div = document.createElement('div');
+                div.className = `flex items-center gap-2 p-2 rounded bg-slate-800/50 border border-slate-700/50 ${task.done ? 'task-done' : ''}`;
+                div.innerHTML = `
+                    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${index})" class="accent-blue-500 w-4 h-4 cursor-pointer">
+                    <span class="flex-1 text-xs text-slate-200 truncate select-none">${task.text}</span>
+                    <button onclick="delTask(${index})" class="text-slate-600 hover:text-red-400 px-1"><i class="fas fa-times"></i></button>
+                `;
+                els.taskList.appendChild(div);
+            });
+            document.getElementById('task-stats').innerText = `${doneCount}/${userData.tasks.length}`;
+        }
+
+        function addTask() {
+            const txt = els.taskInput.value.trim();
+            if(txt) {
+                userData.tasks.push({ id: Date.now(), text: txt, done: false });
+                els.taskInput.value = '';
+                saveData();
+            }
+        }
+        
+        // 绑定回车事件
+        els.taskInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') addTask(); });
+
+        function toggleTask(idx) {
+            userData.tasks[idx].done = !userData.tasks[idx].done;
+            saveData();
+        }
+
+        function delTask(idx) {
+            userData.tasks.splice(idx, 1);
+            saveData();
+        }
+        
+        function clearTasks() {
+            if(confirm("清空当前任务清单？")) {
+                userData.tasks = [];
+                saveData();
+            }
+        }
+
+        // ============================
+        // 4. 番茄钟逻辑 (Pomodoro)
+        // ============================
+        let timerId = null;
+        let timeLeft = 25 * 60;
+        let isRunning = false;
+
+        function updateTimerDisp() {
+            const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            const s = (timeLeft % 60).toString().padStart(2, '0');
+            els.timerDisplay.innerText = `${m}:${s}`;
+        }
+
+        function setCustomTime() {
+            if(isRunning) toggleTimer(); // stop if running
+            const min = parseInt(document.getElementById('custom-time-input').value) || 25;
+            timeLeft = min * 60;
+            updateTimerDisp();
+        }
+
+        function toggleTimer() {
+            if(isRunning) {
+                // Pause
+                clearInterval(timerId);
+                isRunning = false;
+                els.timerBtn.innerText = "继续专注";
+                els.timerBtn.classList.replace('bg-yellow-600', 'bg-blue-600');
+            } else {
+                // Start
+                isRunning = true;
+                els.timerBtn.innerText = "暂停计时";
+                els.timerBtn.classList.replace('bg-blue-600', 'bg-yellow-600');
+                
+                timerId = setInterval(() => {
+                    if(timeLeft > 0) {
+                        timeLeft--;
+                        updateTimerDisp();
+                    } else {
+                        // Finished
+                        clearInterval(timerId);
+                        isRunning = false;
+                        els.timerBtn.innerText = "开始专注";
+                        els.timerBtn.classList.replace('bg-yellow-600', 'bg-blue-600');
+                        alert("🎉 专注时间结束，请休息！");
+                        addHistory("完成专注", "success");
+                    }
+                }, 1000);
+            }
+        }
+
+        // ============================
+        // 5. AI 视觉 & 校准 (Core)
+        // ============================
+        let systemActive = false;
         let currentRatio = 0;
         let badFrames = 0;
-        let lastSpeak = 0;
+        let lastSpeakTime = 0;
 
-        const videoElement = document.getElementsByClassName('input_video')[0];
-        const canvasElement = document.getElementsByClassName('output_canvas')[0];
-        const ctx = canvasElement.getContext('2d');
+        const video = document.getElementsByClassName('input_video')[0];
+        const canvas = document.getElementsByClassName('output_canvas')[0];
+        const ctx = canvas.getContext('2d');
+        const badge = document.getElementById('status-badge');
+        const box = document.getElementById('monitor-box');
 
         const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
         pose.setOptions({modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
         pose.onResults(onResults);
 
         function onResults(results) {
-            // 适配
-            if (canvasElement.width !== videoElement.videoWidth) {
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
+            if(canvas.width !== video.videoWidth) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
             }
 
             ctx.save();
-            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            ctx.translate(canvasElement.width, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
-            ctx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
             if (results.poseLandmarks) {
                 const lm = results.poseLandmarks;
-                
-                // 根据用户偏好绘制骨骼
-                if (userData.prefs.skeleton) {
+                if(userData.prefs.skeleton) {
                     drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255,255,255,0.2)', lineWidth: 2});
                     drawLandmarks(ctx, [lm[0], lm[11], lm[12]], {color: '#3b82f6', lineWidth: 1});
                 }
-
                 checkPosture(lm);
             }
             ctx.restore();
@@ -298,125 +423,105 @@
 
         function checkPosture(lm) {
             const nose = lm[0];
-            const lSh = lm[11];
-            const rSh = lm[12];
+            const shL = lm[11];
+            const shR = lm[12];
             
-            // 计算颈肩比
-            const shoulderWidth = Math.sqrt(Math.pow(lSh.x - rSh.x, 2) + Math.pow(lSh.y - rSh.y, 2));
-            const midShY = (lSh.y + rSh.y) / 2;
-            const neckDist = Math.abs(nose.y - midShY);
+            const shWidth = Math.sqrt(Math.pow(shL.x - shR.x, 2) + Math.pow(shL.y - shR.y, 2));
+            const midY = (shL.y + shR.y) / 2;
+            const neckDist = Math.abs(nose.y - midY);
             
-            currentRatio = neckDist / shoulderWidth;
-
-            // 使用当前用户的阈值进行判断
-            const userLimit = userData.threshold;
-            const isBad = currentRatio < userLimit;
-
-            updateStatus(isBad);
-        }
-
-        function updateStatus(isBad) {
-            const badge = document.getElementById('status-badge');
-            const box = document.getElementById('monitor-box');
+            currentRatio = neckDist / shWidth;
             
-            if (isBad) {
+            // Logic
+            if(currentRatio < userData.threshold) {
                 badFrames++;
             } else {
                 badFrames = 0;
-                badge.innerText = "状态良好";
-                badge.className = "bg-black/60 backdrop-blur px-3 py-1.5 rounded-lg text-xs font-bold text-green-400";
+                badge.innerHTML = '<i class="fas fa-check text-[8px] text-green-500 mr-2"></i>状态良好';
+                badge.className = "bg-black/60 backdrop-blur px-3 py-1 rounded text-xs font-bold text-green-400 border border-green-500/30";
                 box.style.borderColor = "#334155";
             }
 
-            if (badFrames > 40) {
-                badge.innerText = "⚠️ 姿态错误";
-                badge.className = "bg-red-600 px-3 py-1.5 rounded-lg text-xs font-bold text-white animate-pulse";
+            if(badFrames > 50) { // ~1.5 sec
+                badge.innerHTML = '<i class="fas fa-exclamation-triangle text-[8px] text-white mr-2"></i>姿态异常';
+                badge.className = "bg-red-600 px-3 py-1 rounded text-xs font-bold text-white animate-pulse border border-red-400";
                 box.style.borderColor = "#ef4444";
                 
-                if (userData.prefs.voice) {
+                if(userData.prefs.voice) {
                     const now = Date.now();
-                    if (now - lastSpeak > 8000) {
-                        const u = new SpeechSynthesisUtterance(`${currentUser}，请注意坐姿`);
+                    if(now - lastSpeakTime > 8000) {
+                        const u = new SpeechSynthesisUtterance("请注意坐姿");
                         window.speechSynthesis.speak(u);
-                        lastSpeak = now;
+                        lastSpeakTime = now;
                     }
                 }
                 
-                // 模拟记录不良事件 (为了演示历史功能)
-                if (badFrames === 41) { 
-                    addHistoryRecord();
+                // Log event rarely
+                if(badFrames === 51) {
+                    addHistory("姿态不良警告", "warn");
                 }
             }
-        }
-
-        function calibrateUser() {
-            if (!isSystemActive) return alert("请先启动监测");
-            if (currentRatio === 0) return alert("未检测到坐姿");
-
-            // 将当前比率的 85% 设为该用户的阈值
-            const newThres = currentRatio * 0.85;
-            userData.threshold = newThres;
-            saveUserData(); // 保存到该用户档案
-            
-            alert(`校准成功！\n已为用户 [${currentUser}] 保存个性化阈值: ${newThres.toFixed(2)}`);
         }
 
         function startSystem() {
             document.getElementById('start-overlay').style.display = 'none';
-            isSystemActive = true;
-            const camera = new Camera(videoElement, {
-                onFrame: async () => { await pose.send({image: videoElement}); },
+            const camera = new Camera(video, {
+                onFrame: async () => { await pose.send({image: video}); },
                 width: 1280, height: 720
             });
             camera.start();
         }
 
+        function calibrateUser() {
+            if(currentRatio === 0) return alert("未检测到坐姿，请正对摄像头");
+            userData.threshold = currentRatio * 0.85;
+            saveData();
+            alert(`✅ 校准成功！\n已为 [${currentUser}] 设定阈值: ${userData.threshold.toFixed(2)}`);
+        }
 
-        // ==========================================
-        // 3. 历史记录系统
-        // ==========================================
-        function addHistoryRecord() {
-            // 这里我们模拟添加一条记录（实际使用中可以是每次专注结束时添加）
-            // 为了演示，每次检测到不良姿态超过一定时间，就加一条Log
-            const record = {
-                time: new Date().toLocaleTimeString(),
-                desc: "检测到明显不良体态"
+        // --- 历史记录 ---
+        function addHistory(text, type) {
+            const item = { 
+                time: new Date().toLocaleTimeString(), 
+                text: text, 
+                type: type // 'success' or 'warn'
             };
-            userData.history.unshift(record);
-            // 限制只存最近 20 条
-            if(userData.history.length > 20) userData.history.pop();
-            
-            saveUserData();
-            renderHistory();
+            userData.history.unshift(item);
+            if(userData.history.length > 30) userData.history.pop();
+            saveData();
+            renderHistory(); // 只有在历史Tab可见时渲染也行，这里直接渲染
         }
 
         function renderHistory() {
             els.historyList.innerHTML = '';
-            els.historyCount.innerText = `${userData.history.length} 条`;
-
-            if (userData.history.length === 0) {
+            if(!userData.history.length) {
                 els.historyList.innerHTML = '<div class="text-center text-xs text-slate-600 mt-10">暂无记录</div>';
                 return;
             }
-
-            userData.history.forEach(item => {
+            userData.history.forEach(h => {
+                const color = h.type === 'success' ? 'text-green-400' : 'text-red-400';
                 const div = document.createElement('div');
-                div.className = "p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center";
+                div.className = "flex justify-between text-xs p-2 border-b border-slate-800";
                 div.innerHTML = `
-                    <span class="text-xs text-red-400 font-bold">${item.desc}</span>
-                    <span class="text-[10px] text-slate-500 font-mono">${item.time}</span>
+                    <span class="${color} font-bold">${h.text}</span>
+                    <span class="text-slate-500 font-mono">${h.time}</span>
                 `;
                 els.historyList.appendChild(div);
             });
         }
-
-        function clearUserHistory() {
-            if(confirm(`确定清空 [${currentUser}] 的所有记录吗？`)) {
+        
+        function clearHistory() {
+            if(confirm("清除记录？")) {
                 userData.history = [];
-                saveUserData();
-                renderHistory();
+                saveData();
             }
         }
+
+        // 时钟
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock-display').innerText = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }, 1000);
 
     </script>
 </body>
